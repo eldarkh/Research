@@ -2329,9 +2329,10 @@ int main (int argc, char *argv[])
     std::string name5("Test5");
     
     // 2d case, no mortars
-    //no_mortars.run (5, mesh_matching2d, 1.e-14, name1, 1500);
-    // 2d case, mortars (quite slow due to projections)
-    quad_mortars.run (3, mesh_matching2d, 1.e-14, name2, 1500, 51);
+    no_mortars.run (5, mesh_matching2d, 1.e-14, name1, 1500);
+    
+   // 2d case, mortars (quite slow due to projections)
+    //quad_mortars.run (3, mesh_matching2d, 1.e-14, name2, 1500, 51);
     //quad_mortars.run (5, mesh_m2d, 1.e-14, name2, 1500, 51);
     //cubic_mortars.run (3, mesh_matching2d, 1.e-14, name4, 1500, 61);
     //cubic_mortars.run (3, mesh_m2d, 1.e-14, name2, 1500, 61);
