@@ -1,0 +1,26 @@
+\begin{table}[ht!]
+\caption{Mixed Finite Element method for Biot poroelastic system.} \label{tab:1}
+\begin{center}
+\begin{tabular}{c|cc|cc|cc}
+\hline
+& \multicolumn{2}{c|}{$\|z - z_h\|_{L^2(\Omega)}$} & \multicolumn{2}{c|}{$\|p -p_h\|_{L^2(\Omega)}$} & \multicolumn{2}{c}{$\|u - u_h\|_{L^2(\Omega)}$} \\ 
+h & error & order & error & order & error & order \\ 
+\hline
+1/2 & 1.01e+00 & 0.00 & 2.47e-01 & 0.00 & 1.26e-02 & 0.00 \\ 
+1/4 & 9.72e-01 & 0.06 & 1.40e-01 & 0.82 & 5.21e-03 & 1.27 \\ 
+1/8 & 4.19e-01 & 1.21 & 4.36e-02 & 1.68 & 1.23e-03 & 2.09 \\ 
+1/16 & 1.80e-01 & 1.22 & 1.29e-02 & 1.76 & 2.80e-04 & 2.13 \\ 
+1/32 & 8.82e-02 & 1.03 & 3.41e-03 & 1.92 & 7.05e-05 & 1.99 \\ 
+\hline
+& \multicolumn{2}{c|}{$\|\sigma - \sigma_h\|_{L^2(\Omega)}$} & \multicolumn{2}{c|}{$\|\nabla \cdot (\sigma -\sigma_h)\|_{L^2(\Omega)}$} & \multicolumn{2}{c}{$\|\gamma - \gamma_h\|_{L^2(\Omega)}$} \\ 
+h & error & order & error & order & error & order \\ 
+\hline
+1/2 & 1.40e-02 & 0.00 & 4.45e-02 & 0.00 & 5.61e-02 & 0.00 \\ 
+1/4 & 6.18e-03 & 1.18 & 2.98e-02 & 0.58 & 3.42e-02 & 0.71 \\ 
+1/8 & 1.50e-03 & 2.04 & 1.33e-02 & 1.17 & 1.55e-02 & 1.15 \\ 
+1/16 & 3.38e-04 & 2.15 & 6.26e-03 & 1.09 & 7.27e-03 & 1.09 \\ 
+1/32 & 8.30e-05 & 2.03 & 3.15e-03 & 0.99 & 3.62e-03 & 1.01 \\ 
+\hline
+\end{tabular}
+\end{center}
+\end{table}

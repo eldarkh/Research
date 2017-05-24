@@ -1,0 +1,362 @@
+/////////////////////////////////////////////*
+/*
+The code implements Biot model with
+mixed finite element method for the flow
+and continuous Galerkin FEM for elasiticity.
+
+Two time discretization schemes are available:
+ - Backward Euler (BiotMixedBE)
+ - Crank-Nicolson (BiotMixedCN)
+
+Author: Eldar Khattatov
+Date  : Nov 5th, 2016
+*/
+/////////////////////////////////////////////*/
+
+load "iovtk"
+load "Element_Mixte"
+
+// Initial mesh size
+int n = 4;
+int[int] fforder = [1,0,1];
+// Refinement cycles + 1
+int refine = 4;
+real t = 0.0;
+real T = 0.01;
+real dt = 0.001;
+int timesteps = int(T/dt);
+// Test case 1
+int case = 1;
+mesh ThInit = square(n,n,flags=3);
+//plot(ThInit,wait=1);
+ThInit = movemesh(ThInit, [x,y]);
+real alpha = 0.0;
+func Kinv = 1.0;
+
+// Test case 6
+func eta0x = sin(pi*t)*(-3*x+cos(y));
+func eta0y = sin(pi*t)*(y+1);
+
+func deta11 = sin(pi*t)*(-3);
+func deta12 = -sin(pi*t)*sin(y);
+func deta21 = sin(pi*t)*0;
+func deta22 = sin(pi*t);
+
+func u0x = -exp(t)*pi*cos(pi*y/2)*cos(pi*x);
+func u0y = pi*exp(t)*sin(pi*y/2)*sin(pi*x)/2;
+
+func du0x = exp(t)*pi*pi*cos(pi*y/2)*sin(pi*x);
+func du0y = 0.25*pi*pi*exp(t)*cos(pi*y/2)*sin(pi*x);
+
+func p0 = exp(t)*sin(pi*x)*cos(pi*y/2);
+
+func fpx = sin(pi*t)*cos(y) + pi*exp(t)*cos(pi*x)*cos((pi*y)/2);
+func fpy = -(pi*exp(t)*sin(pi*x)*sin((pi*y)/2))/2;
+
+func qp = exp(t)*cos((pi*y)/2)*sin(pi*x) - 2*pi*cos(pi*t) + (5*pi^2*exp(t)*cos((pi*y)/2)*sin(pi*x))/4;
+func qpold = exp(t-dt)*cos((pi*y)/2)*sin(pi*x) - 2*pi*cos(pi*(t-dt)) + (5*pi^2*exp(t-dt)*cos((pi*y)/2)*sin(pi*x))/4;
+
+
+// Test
+//func eta0x = 0.5*t*x*x;
+//func eta0y = 0.5*t*y*y;
+//
+//func u0x = -cos(x+y)*exp(t);
+//func u0y = -cos(x+y)*exp(t);
+//func du0x = exp(t)*sin(x+y);
+//func du0y = exp(t)*sin(x+y);
+//
+//func p0 = exp(t)*sin(x+y);
+//
+//func deta11 = t*x;
+//func deta12 = 0;
+//func deta21 = 0;
+//func deta22 = t*y;
+//
+//func fpx  = -(1.0*t + 2*1.0*t - 1.0*exp(t)*cos(x+y));
+//func fpy  = -(1.0*t + 2*1.0*t - 1.0*exp(t)*cos(x+y));
+//func qp   = (1+2)*exp(t)*sin(x+y) + 1.0*(x+y);
+//func qpold= (1+2)*exp(t-dt)*sin(x+y) + 1.0*(x+y);
+
+// TEST SET 5 ()
+//func u0x = -t*pi*cos(pi*y/2.0)*cos(pi*x);
+//func u0y = pi*t*sin(pi*y/2.0)*sin(pi*x)/2.0;
+//func du0x = t*pi*pi*cos(pi*y/2.0)*sin(pi*x);
+//func du0y = pi*pi*t*cos(pi*y/2.0)*sin(pi*x)/4.0;
+//
+//func eta0x = t^2*(-3*x+cos(y));
+//func eta0y = t^2*(y + 1.0);
+//
+//func deta11 = -3.0*t^2;
+//func deta12 = -sin(y)*t^2;
+//func deta21 = 0;
+//func deta22 = t^2;
+//
+//func p0 = t*sin(pi*x)*cos(pi*y/2.0);
+//
+//func fpx =  cos(y)*t^2 + pi*cos(pi*x)*cos((pi*y)/2.0)*t;
+//func fpy =  -(pi*t*sin(pi*x)*sin((pi*y)/2.0))/2.0;
+//
+//func qp = cos((pi*y)/2.0)*sin(pi*x) - 4.0*t + (5.0*pi^2*t*cos((pi*y)/2.0)*sin(pi*x))/4.0;
+//func qpold = cos((pi*y)/2.0)*sin(pi*x) - 4.0*(t-dt) + (5.0*pi^2*(t-dt)*cos((pi*y)/2.0)*sin(pi*x))/4.0;
+
+
+
+// TEST SET 4 (desired)
+//	func u0x = -t*(6*x - 2);
+//	func u0y = t*(sin(y) + 2);
+//	func du0x = -6*t;
+//	func du0y = t*cos(y);
+//	
+//	func eta0x = -t^2*(3*x - cos(y));
+//	func eta0y = t^2*(y + 1);
+//	
+//	func deta11 = -3*t^2;
+//	func deta12 = -t^2*sin(y);
+//	func deta21 = 0;
+//	func deta22 = t^2;
+//	
+//	func p0 = t*(3*x^2 - 2*x - 2*y + cos(y) + 5);
+//	
+//	func fpx = cos(y)*t^2 + (6*x - 2)*t;
+//	func fpy = -t*(sin(y) + 2);
+//	
+//	func qp = 3*x^2 - 2*x - 10*t - 2*y + cos(y) + t*cos(y) + 5;
+//	func qpold = 3*x^2 - 2*x - 10*(t-dt) - 2*y + cos(y) + (t-dt)*cos(y) + 5;
+
+
+// TEST SET 3
+//func u0x = -(pi*t*cos((pi*x)/2)*sin((pi*y)/2))/2;
+//func u0y = -(pi*t*cos((pi*y)/2)*sin((pi*x)/2))/2;
+//func du0x = (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/4;
+//func du0y = (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/4;
+//
+//func eta0x = t^2*cos(pi*x)*sin(2*pi*y);
+//func eta0y = t^2*cos(pi*y)*sin(pi*x);
+//
+//func deta11 = -pi*t^2*sin(pi*x)*sin(2*pi*y);
+//func deta12 = 2*pi*t^2*cos(pi*x)*cos(2*pi*y);
+//func deta21 = pi*t^2*cos(pi*x)*cos(pi*y);
+//func deta22 = -pi*t^2*sin(pi*x)*sin(pi*y);
+//
+//func p0 = t*sin(0.5*pi*x)*sin(0.5*pi*y);
+//
+//func fpx = 2*pi^2*t^2*cos(pi*x)*sin(pi*y) + 7*pi^2*t^2*cos(pi*x)*sin(2*pi*y) + (pi*t*cos((pi*x)/2)*sin((pi*y)/2))/2;
+//func fpy = 4*pi^2*t^2*cos(pi*y)*sin(pi*x) + 4*pi^2*t^2*cos(2*pi*y)*sin(pi*x) + (pi*t*cos((pi*y)/2)*sin((pi*x)/2))/2;
+//
+//func qp = sin((pi*x)/2)*sin((pi*y)/2) - 2*pi*t*sin(pi*x)*sin(pi*y) - 2*pi*t*sin(pi*x)*sin(2*pi*y) + (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/2;
+//func qpold = sin((pi*x)/2)*sin((pi*y)/2) - 2*pi*(t-dt)*sin(pi*x)*sin(pi*y) - 2*pi*(t-dt)*sin(pi*x)*sin(2*pi*y) + (pi^2*(t-dt)*sin((pi*x)/2)*sin((pi*y)/2))/2;
+
+// TEST SET 2
+//func u0x = -(pi*t*cos((pi*x)/2)*sin((pi*y)/2))/2;
+//func u0y = -(pi*t*cos((pi*y)/2)*sin((pi*x)/2))/2;
+//func du0x = (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/4;
+//func du0y = (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/4;
+//
+//func eta0x = t*cos(pi*x)*sin(2*pi*y);
+//func eta0y = t*cos(pi*y)*sin(pi*x);
+//
+//func deta11 = -pi*t*sin(pi*x)*sin(2*pi*y);
+//func deta12 = 2*pi*t*cos(pi*x)*cos(2*pi*y);
+//func deta21 = pi*t*cos(pi*x)*cos(pi*y);
+//func deta22 = -pi*t*sin(pi*x)*sin(pi*y);
+//
+//func p0 = t*sin(0.5*pi*x)*sin(0.5*pi*y);
+//
+//func fpx = (pi*t*cos((pi*x)/2)*sin((pi*y)/2))/2 + 2*pi^2*t*cos(pi*x)*sin(pi*y) + 7*pi^2*t*cos(pi*x)*sin(2*pi*y);
+//func fpy = (pi*t*cos((pi*y)/2)*sin((pi*x)/2))/2 + 4*pi^2*t*cos(pi*y)*sin(pi*x) + 4*pi^2*t*cos(2*pi*y)*sin(pi*x);
+//func qp = sin((pi*x)/2)*sin((pi*y)/2) - pi*sin(pi*x)*sin(pi*y) - pi*sin(pi*x)*sin(2*pi*y) + (pi^2*t*sin((pi*x)/2)*sin((pi*y)/2))/2;
+//
+//func qpold = sin((pi*x)/2)*sin((pi*y)/2) - pi*sin(pi*x)*sin(pi*y) - pi*sin(pi*x)*sin(2*pi*y) + (pi^2*(t-dt)*sin((pi*x)/2)*sin((pi*y)/2))/2;
+
+
+// TEST SET 1
+//func u0x = -2*pi*t*cos(2*pi*x)*sin(2*pi*y);
+//func u0y = -2*pi*t*sin(2*pi*x)*cos(2*pi*y);
+//func du0x = 4*pi^2*t*sin(2*pi*x)*sin(2*pi*y);
+//func du0y = 4*pi^2*t*sin(2*pi*x)*sin(2*pi*y);
+//
+//func eta0x = sin(pi*t)*x*(1-x)*y*(1-y);
+//func eta0y = sin(pi*t)*x*(1-x)*y*(1-y);
+//
+//func deta11 = y*sin(pi*t)*(x - 1)*(y - 1) + x*y*sin(pi*t)*(y - 1);
+//func deta12 = x*sin(pi*t)*(x - 1)*(y - 1) + x*y*sin(pi*t)*(x - 1);
+//func deta21 = y*sin(pi*t)*(x - 1)*(y - 1) + x*y*sin(pi*t)*(y - 1);
+//func deta22 = x*sin(pi*t)*(x - 1)*(y - 1) + x*y*sin(pi*t)*(x - 1);
+//
+//func p0 = t*sin(2*pi*x)*sin(2*pi*y);
+//
+//func fpx =  2*pi*t*cos(2*pi*x)*sin(2*pi*y) - 2*x*sin(pi*t)*(y - 1) - 2*y*sin(pi*t)*(x - 1) - 6*y*sin(pi*t)*(y - 1) - 2*sin(pi*t)*(x - 1)*(y - 1) - 2*x*y*sin(pi*t) - 2*x*sin(pi*t)*(x - 1);
+//func fpy =  2*pi*t*cos(2*pi*y)*sin(2*pi*x) - 2*x*sin(pi*t)*(y - 1) - 2*y*sin(pi*t)*(x - 1) - 2*y*sin(pi*t)*(y - 1) - 2*sin(pi*t)*(x - 1)*(y - 1) - 2*x*y*sin(pi*t) - 6*x*sin(pi*t)*(x - 1);
+//
+//func qp = sin(2*pi*x)*sin(2*pi*y) + 8*pi^2*t*sin(2*pi*x)*sin(2*pi*y) + pi*x*y*cos(pi*t)*(y - 1) + pi*x*cos(pi*t)*(x - 1)*(y - 1) + pi*y*cos(pi*t)*(x - 1)*(y - 1) + pi*x*y*cos(pi*t)*(x - 1);
+//func qpold = sin(2*pi*x)*sin(2*pi*y) + 8*pi^2*(t-dt)*sin(2*pi*x)*sin(2*pi*y) + pi*x*y*cos(pi*(t-dt))*(y - 1) + pi*x*cos(pi*(t-dt))*(x - 1)*(y - 1) + pi*y*cos(pi*(t-dt))*(x - 1)*(y - 1) + pi*x*y*cos(pi*(t-dt))*(x - 1);
+
+
+
+// Initialize arrays to store errors
+real[int] erru1(refine);
+real[int] erru2(refine);
+real[int] errp(refine);
+real[int] erreta(refine);
+
+// Initialize arrays to store rates
+real[int] rateu1(refine);
+real[int] rateu2(refine);
+real[int] ratep(refine);
+real[int] rateeta(refine);
+
+// Initialize array of meshes
+mesh Th, ThL;
+mesh[int] ThArray(refine);
+ThArray[0] = ThInit;
+
+// Refine initial mesh to have nested sequence
+for(int i=1; i<refine; i++)
+	ThArray[i] = splitmesh(ThArray[i-1],2);
+
+// Define FE spaces (Lowest order)
+//fespace Vh(Th,RT0);
+//fespace Ph(Th,P0);
+//fespace Lh(Th,P0);
+//fespace Sh(Th,[P1,P1]);
+//fespace Mh(Th,[P1,P1]);
+
+// Higher order
+fespace Vh(Th,RT1);
+fespace Ph(Th,P1dc);
+fespace Lh(Th,P1dc);
+fespace Sh(Th,[P2,P2]);
+fespace Mh(Th,[P2,P2]);
+
+// Define FE variables
+Vh [ux,uy],[vx,vy],[uxr,uyr],[uxold,uyold],[eux,euy];
+Lh lmbda,mu;
+Ph p,q,pr, plotep, pold;
+Sh [etax,etay],[ksix,ksiy],[etaxold,etayold],[eetax,eetay];
+Mh [nux,nuy],[zetax,zetay];
+
+// Mixed formulation of Darcy equation
+problem BiotMixedBE([ux,uy,p,etax,etay,nux,nuy],[vx,vy,q,ksix,ksiy,zetax,zetay],solver=UMFPACK,eps=1.0e-10,tgv=1e30,init=1) =
+   int2d(Th)         ( 2.0*( dx(etax)*dx(ksix) + dy(etay)*dy(ksiy) ) )								// Diagonal part of (D(eta),D(ksi))
+ + int2d(Th)         ( ( (dx(etay) + dy(etax))*(dx(ksiy) + dy(ksix)) ) )							// Off-diagonal part of (D(eta),D(ksi))
+ + int2d(Th)   	     ( (dx(etax) + dy(etay))*(dx(ksix) + dy(ksiy)) ) 								// (div(eta), div(ksi))
+ - int2d(Th)   	     ( p*(dx(ksix) + dy(ksiy)) )													// (p,div(ksi))
+ + int1d(Th,3) 	     ( nux*ksix + nuy*ksiy )														// Lagrange mult for displacement bc
+ + int2d(Th)         ( (ux*vx + uy*vy) - p*(dx(vx) + dy(vy)) )										// Darcy's law
+ + int2d(Th)   	     ( (1.0/dt)*p*q + (dx(ux) + dy(uy))*q + (1.0/dt)*(dx(etax) + dy(etay))*q )		// Momentum equation
+ + int1d(Th,3) 	     ( etax*zetax + etay*zetay )
+ + intalledges(Th) 	 ( 1.e-10*( nux*zetax + nuy*zetay) )
+ - int2d(Th)         ( fpx*ksix + fpy*ksiy + qp*q )													// RHS due to source/sink
+ + int1d(Th,1,2,3,4) ( p0*(vx*N.x + vy*N.y) )														// RHS due to natural or weak BC
+ - int2d(Th)   		 ( (1.0/dt)*pold*q + (1.0/dt)*(dx(etaxold) + dy(etayold))*q )					// RHS due to time discretization
+ - int1d(Th,3) 		 ( eta0x*zetax + eta0y*zetay )
+ + on(1,2,4,etax=eta0x,etay=eta0y );   																// Essential BC on displacement
+
+problem BiotMixedCN([ux,uy,p,etax,etay,nux,nuy],[vx,vy,q,ksix,ksiy,zetax,zetay],solver=UMFPACK,eps=1.0e-10,tgv=1e30,init=1) =
+   int2d(Th)         ( 2.0*( dx(etax)*dx(ksix) + dy(etay)*dy(ksiy) ) )								// Diagonal part of (D(eta),D(ksi))
+ + int2d(Th)         ( ( (dx(etay) + dy(etax))*(dx(ksiy) + dy(ksix)) ) )							// Off-diagonal part of (D(eta),D(ksi))
+ + int2d(Th)   	     ( (dx(etax) + dy(etay))*(dx(ksix) + dy(ksiy)) ) 								// (div(eta), div(ksi))
+ - int2d(Th)   	     ( p*(dx(ksix) + dy(ksiy)) )													// (p,div(ksi))
+ + int1d(Th,3) 	     ( nux*ksix + nuy*ksiy )														// Lagrange mult for displacement bc
+ + int2d(Th)         ( (ux*vx + uy*vy) - p*(dx(vx) + dy(vy)) )										// Darcy's law
+ + int2d(Th)   	     ( (1.0/dt)*p*q + 0.5*(dx(ux) + dy(uy))*q + (1.0/dt)*(dx(etax) + dy(etay))*q )	// Momentum equation
+ + int1d(Th,3) 	     ( etax*zetax + etay*zetay )
+ + intalledges(Th) 	 ( 1.e-10*( nux*zetax + nuy*zetay) )
+ ////////// RHS //////////
+ - int2d(Th)   		 ( (1.0/dt)*pold*q + (1.0/dt)*(dx(etaxold) + dy(etayold))*q )					// RHS due to time discretization
+ - int2d(Th)         ( fpx*ksix + fpy*ksiy + 0.5*(qp+qpold)*q )										// RHS due to source/sink
+ + int1d(Th,1,2,3,4) ( p0*(vx*N.x + vy*N.y) )														// RHS due to natural or weak BC
+ - int1d(Th,3) 		 ( eta0x*zetax + eta0y*zetay )
+ - int2d(Th)   	     ( -0.5*(dx(uxold) + dy(uyold))*q  )											// Momentum equation due to CN
+ + on(1,2,4,etax=eta0x,etay=eta0y );   																// Essential BC on displacement
+
+
+// Compute solutions and errors
+for (int i=0; i<refine; i++)
+{
+	t = 0;
+	Th = ThArray[i];
+	pold = p0;
+	[etaxold,etayold] = [eta0x,eta0y];
+	[uxold,uyold] = [u0x,u0y];
+
+	//savevtk("./pics/TrueSolution_"+string(case)+"_0.vtk", Th, [u0x, u0y, 0], p0, [eta0x,eta0y],order=fforder,dataname="Velocity Pressure Displacement");
+	for (int k=1; k<=timesteps; ++k)
+	{
+		t = t+dt;
+		// Compute solution on each mesh
+
+		BiotMixedBE;
+		pold = p;
+		[etaxold,etayold] = [etax,etay];
+		[uxold,uyold] = [ux,uy];
+
+		[eux,euy] = [ux-u0x,uy-u0y];
+		[eetax,eetay] = [etax-eta0x,etay-eta0y];
+		plotep = abs(p-p0);
+	
+
+		if (i == 2)
+		{
+			savevtk("./pics/TrueSolution_"+string(case)+"_"+string(k)+".vtk", Th, [u0x, u0y, 0], p0, [eta0x,eta0y],order=fforder,dataname="Velocity Pressure Displacement");
+			savevtk("./pics/Solution_"+string(case)+"_"+string(k)+".vtk", Th, [ux, uy, 0], p, [etax,etay],order=fforder,dataname="Velocity Pressure Displacement");
+			savevtk("./pics/Error_"+string(case)+"_"+string(k)+".vtk", Th, [eux,euy,0],plotep,[eetax,eetay,0],order=fforder,dataname="Velocity Pressure Displacement");
+		}
+	}
+
+	// Compute errors on each mesh (take sqrt later)
+	erru1[i] = int2d(Th, qforder = 6)( (ux - u0x)^2 + (uy - u0y)^2 );
+	erru2[i] = int2d(Th, qforder = 6)( (dx(ux) + dy(uy) - du0x - du0y)^2 );
+	errp[i] = int2d(Th, qforder = 6)( (p - p0)^2 );
+	erreta[i] = int2d(Th, qforder = 6)( (dx(etax) - deta11)^2 + (dy(etay) - deta22)^2 + (dx(etay) - deta21)^2 + (dy(etax) - deta12)^2);
+
+	erru1[i] = sqrt(erru1[i]);
+	erru2[i] = sqrt(erru2[i]);
+	errp[i] = sqrt(errp[i]);
+	erreta[i] = sqrt(erreta[i]);
+}
+
+// Compute rates
+// First entry is meaningless
+rateu1[0] = 0;
+rateu2[0] = 0;
+ratep[0] = 0;
+rateeta[0] = 0;
+
+
+for (int i=1; i<refine; i++)
+{
+	rateu1(i) = log(erru1(i-1)/erru1(i))/log(2.0);
+	rateu2(i) = log(erru2(i-1)/erru2(i))/log(2.0);
+	ratep(i) = log(errp(i-1)/errp(i))/log(2.0);
+	rateeta(i) = log(erreta(i-1)/erreta(i))/log(2.0);
+}
+
+
+// Output errors and rates (h - L2 vel - Hdiv vel - H1 displ - L2 pres) in latex format
+for (int i=0; i<refine; i++){
+	cout.precision(3);
+	cout.scientific << "1/"+string(n*2^i) << " & " << erru1[i] << " & ";
+
+	cout.precision(2);
+	cout.fixed << rateu1[i] << " & ";
+
+	cout.precision(3);
+	cout.scientific << erru2[i] << " & ";
+
+	cout.precision(2);
+	cout.fixed << rateu2[i] << " & ";
+
+	cout.precision(3);
+	cout.scientific << erreta[i] << " & ";
+
+	cout.precision(2);
+	cout.fixed << rateeta[i] << " & ";
+
+	cout.precision(3);
+	cout.scientific << errp[i] << " & ";
+
+	cout.precision(2);
+	cout.fixed << ratep[i] << " \\\\" << endl;
+}
