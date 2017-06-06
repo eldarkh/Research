@@ -1,6 +1,8 @@
- /*
- * Author: Eldar Khattatov, University of Pittsburgh, 2016
- */
+// ---------------------------------------------------------------------
+//
+// Copyright (C) 2016 Eldar Khattatov
+//
+// ---------------------------------------------------------------------
 
 // Include files
 #include <deal.II/base/quadrature_lib.h>
